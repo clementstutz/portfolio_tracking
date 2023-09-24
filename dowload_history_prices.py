@@ -115,21 +115,27 @@ def _get_dates(assets):
     return list(sorted(dates_temp))
 
 
-def get_value_invested(date, asset, action_counts, value_invested, prix):
+def get_new_investement_value(date, asset, action_counts, prix):
+    new_investement_value = 0
     for i in range(len(asset['orders'])):
         if date == asset['orders'][i]['date']:
             quantity = asset['orders'][i]['quantity']
             action_counts[asset['short_name']] += quantity
-            value_invested += prix * quantity
+            new_investement_value = prix * quantity
 
-    return value_invested
+    return new_investement_value
+
+
+def share_value(previous_wallet_value, current_wallet_value, net_deposit, previous_share_value):
+    share_value = (current_wallet_value - net_deposit) / previous_wallet_value * previous_share_value
+    return share_value
 
 
 def get_wallet_history(assets, base):
     wallet_history = {}
     wallet_history['dates'] = _get_dates(assets)
+    wallet_history['close'] = []
 
-    values = []  # Liste pour stocker les valeurs du portefeuille
     value_invested = 0
     action_counts = {asset['short_name']: 0 for asset in assets}  # Initialisez un dictionnaire pour suivre le nombre d'actions de chaque asset
     for date in wallet_history['dates']:
@@ -139,20 +145,21 @@ def get_wallet_history(assets, base):
             if asset['dates'][0] <= date <= asset['dates'][-1]:
                 if date in asset['dates']:
                     date_index = asset['dates'].index(date)
-                    # Obtenez le prix et la quantité correspondants à cette date
+                    # Obtenez le prix à cette date
                     prix = asset['close'][date_index]
                 else:
                     date_index = wallet_history['dates'].index(date)
                     previous_date = wallet_history['dates'][date_index-1]
                     previous_date_index = asset['dates'].index(previous_date)
-                    # Obtenez le prix et la quantité correspondants à cette date
+                    # Obtenez le prix à la date précédente
                     prix = asset['close'][previous_date_index]
-                    # Mettez à jour le nombre d'actions de cet asset
-                    for i in range(len(asset['orders'])):
-                        if date == asset['orders'][i]['date']:
-                            quantity = asset['orders'][i]['quantity']
-                            action_counts[asset['short_name']] += quantity
-                value_invested = get_value_invested(date, asset, action_counts, value_invested, prix)
+                
+                new_investement_value = get_new_investement_value(date, asset, action_counts, prix)
+                print('new_investement_value =', new_investement_value)
+                value_invested += new_investement_value
+                print('value_invested =', value_invested)
+                #new_share_value = share_value(previous_wallet_value, current_wallet_value, net_deposit, previous_share_value)
+
                 # Mettez à jour la valeur totale et la quantité totale pondérée
                 total_value += prix * action_counts[asset['short_name']]
                 total_quantity += action_counts[asset['short_name']]
@@ -160,29 +167,67 @@ def get_wallet_history(assets, base):
                 pass
         # Calculez la valeur pondérée du portefeuille à cette date
         if total_quantity > 0:
-            normalized_value = total_value / value_invested * base
-            values.append(normalized_value)
-    wallet_history['close'] = values
+            print('total_value =', total_value)
+            normalized_value = (total_value) / value_invested * base
+            print('normalized_value =', normalized_value)
+            wallet_history['close'].append(normalized_value)
+        else:
+            print("ERROR: Cas de figure non prévu !")
     return wallet_history
 
 
 def main():
     end_date = '2023-09-20'
     interval = '1d'  # must be '1d', '1wk' or '1mo'
-    assets_jsonfile = 'assets_example.json'
+    assets_jsonfile = 'assets.json'
     save_path_sufix = '_history.csv'
 
-    dowload_history(assets_jsonfile, end_date, save_path_sufix, interval)
-    assets = load_history(assets_jsonfile, save_path_sufix)
+    # dowload_history(assets_jsonfile, end_date, save_path_sufix, interval)
+    # assets = load_history(assets_jsonfile, save_path_sufix)
+    assets = {
+        'assets': [
+            {'short_name': 'Wayne',
+             'orders': [{'date': '2023-07-31', 'quantity': 1}],
+             'dates': ['2023-07-31', '2023-08-02'],
+             'close': [105, 108]
+            },
+            {'short_name': 'Stark',
+             'orders': [{'date': '2023-07-31', 'quantity': 1}, {'date': '2023-08-01', 'quantity': 1}],
+             'dates': ['2023-07-31', '2023-08-01', '2023-08-02'],
+             'close': [75, 76, 79]
+            }
+        ]
+    }
 
     wallet_history = get_wallet_history(assets=assets['assets'],
                                         base=100)
 
-    plot_single_chart(dates_and_prices=wallet_history,
-                      figure_id=2,
-                      title='wallet_history',
-                      xlabel='time',
-                      ylabel='€')
+    # plot_single_chart(dates_and_prices=wallet_history,
+    #                   figure_id=2,
+    #                   title='wallet_history',
+    #                   xlabel='time',
+    #                   ylabel='€')
 
+
+    previous_wallet_value = 10000
+    current_wallet_value = 10600
+    net_deposit = 0
+    previous_share_value = 100
+    new_share_value = share_value(previous_wallet_value, current_wallet_value, net_deposit, previous_share_value)
+    print(new_share_value)
+
+    previous_wallet_value = 10600
+    current_wallet_value = 10800
+    net_deposit = 500
+    previous_share_value = new_share_value
+    new_share_value = share_value(previous_wallet_value, current_wallet_value, net_deposit, previous_share_value)
+    print(new_share_value)
+
+    previous_wallet_value = 10800
+    current_wallet_value = 10950
+    net_deposit = -400
+    previous_share_value = new_share_value
+    new_share_value = share_value(previous_wallet_value, current_wallet_value, net_deposit, previous_share_value)
+    print(new_share_value)
 
 main()
