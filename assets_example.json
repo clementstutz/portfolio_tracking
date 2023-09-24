@@ -1,0 +1,52 @@
+{
+    "assets": [
+        {
+            "short_name": "Wayne",
+            "name": "Wayne Enterprises",
+            "ticker": "WAYE",
+			"broker": "Gringotts Wizarding Bank",
+            "orders": [
+				{"date": "2021-02-11", "quantity": 20, "price": 27.58}
+			]
+        },
+        {
+            "short_name": "Stark",
+            "name": "Stark Industries",
+            "ticker": "STRK",
+			"broker": "Gringotts Wizarding Bank",
+			"orders": [
+				{"date": "2022-03-17", "quantity": 1, "price": 7329},
+				{"date": "2023-07-06", "quantity": -1, "price": 7109.7}
+			]
+        },
+        {
+            "short_name": "Weyland-Yutani",
+            "name": "Weyland-Yutani Corporation",
+            "ticker": "WLY",
+			"broker": "Gringotts Wizarding Bank",
+			"orders": [
+				{"date": "2020-07-09", "quantity": 1, "price": 216.2}
+			]
+        },
+        {
+            "short_name": "Umbrella",
+            "name": "Umbrella Corporation",
+            "ticker": "UBLA",
+			"broker": "Gringotts Wizarding Bank",
+			"orders": [
+				{"date": "2021-08-12", "quantity": 12, "price": 8.639},
+                {"date": "2021-12-08", "quantity": -6, "price": 9.357}
+			]
+        },
+        {
+            "short_name": "E corp.",
+            "name": "E Corporation",
+            "ticker": "ECO",
+			"broker": "Gringotts Wizarding Bank",
+			"orders": [
+				{"date": "2021-02-11", "quantity": 1, "price": 348.34},
+                {"date": "2022-01-11", "quantity": 1, "price": 430.44}
+			]
+        }
+    ]
+}
