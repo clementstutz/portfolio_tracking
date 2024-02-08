@@ -46,8 +46,9 @@ def plot_multi_charts(dates_and_prices, values, figure_id, title, xlabel, ylabel
 
 
 class Wallet:
-    def __init__(self, dates: List=None, valuation: List=None, ref_wallet_value: float=100, devise: str="EUR") -> None:
-        self.dates = [] if dates is None else dates
+    def __init__(self, assets: Assets, valuation: List=None, devise: str="EUR") -> None:
+        self.assets = assets.assets
+        self.dates = get_dates(assets)
         self.valuation = [] if valuation is None else valuation
         self.devise = devise
         self.investment = []
@@ -65,6 +66,7 @@ class Wallet:
 
     def to_dict(self) -> Dict:
         return {
+            "assets": [asset.to_dict() for asset in self.assets],  # TODO : change for asset insted ?
             "dates": self.dates,
             "valuation": self.valuation,
             "devise": self.devise,
@@ -122,17 +124,17 @@ def _get_wallet_time_weighted_rates_of_return(previous_value: float, current_val
         return 0
     return twrr
 
-def get_wallet_valuation(wallet: Wallet, assets: Assets, ref_wallet_value: float=100) -> Wallet:  # OK !
+def get_wallet_valuation(wallet: Wallet, ref_wallet_value: float=100) -> Wallet:  # OK !
     """Return the wallet with its valorisation over time"""
     if wallet.dates == []:
         print('ERROR: wallet.dates must have been defined. Please call get_dates.')
         return 1
-    actions_count = {asset.short_name: 0 for asset in assets.assets}  # Initialisez un dictionnaire pour suivre le nombre d'actions de chaque asset
+    actions_count = {asset.short_name: 0 for asset in wallet.assets}  # Initialisez un dictionnaire pour suivre le nombre d'actions de chaque asset
     wallet.twrr_cumulated.append(ref_wallet_value)
     investement = 0
     for date in wallet.dates:
         total_valuation = 0  # Initialisez la valeur totale du portefeuille à 0
-        for asset in assets.assets:
+        for asset in wallet.assets:
             if asset.dates[0] <= date <= asset.dates[-1]:
                 close_price = _get_close_price_of_a_day(date, asset, wallet)
                 investement += _get_new_investement(date, asset, actions_count)
@@ -158,7 +160,7 @@ def get_wallet_valuation(wallet: Wallet, assets: Assets, ref_wallet_value: float
 def _current_share_value(current_wallet_value: float, net_deposit: float, previous_wallet_value: float, previous_share_value: float) -> float:  # OK !
     return (current_wallet_value - net_deposit) / previous_wallet_value * previous_share_value
 
-def get_wallet_share_value(wallet: Wallet, assets: Assets, ref_wallet_value: float=100) -> Wallet:  # OK !
+def get_wallet_share_value(wallet: Wallet, ref_wallet_value: float=100) -> Wallet:  # OK !
     if not isinstance(wallet, Wallet):
         print('ERROR: wallet must be an instance of Wallet class.')
         return 1
@@ -166,16 +168,16 @@ def get_wallet_share_value(wallet: Wallet, assets: Assets, ref_wallet_value: flo
         print('ERROR: wallet.valuation must have been calculated. Please call get_wallet_valuation.')
         return 1
     
-    actions_count = {asset.short_name: 0 for asset in assets.assets}
+    actions_count = {asset.short_name: 0 for asset in wallet.assets}
 
     wallet.share_value.append(ref_wallet_value)
     current_share_value = wallet.share_value[0]
-    for asset in assets.assets:
+    for asset in wallet.assets:
         _get_new_investement(wallet.dates[0], asset, actions_count)
 
     for date in wallet.dates[1:]:
         new_value_invested = 0
-        for asset in assets.assets:
+        for asset in wallet.assets:
             if asset.dates[0] <= date <= asset.dates[-1]:
                 new_investement = _get_new_investement(date, asset, actions_count)
                 new_value_invested += new_investement
@@ -244,65 +246,44 @@ if __name__ == '__main__':
     order_1 = Order("2024-01-22", 1, 3.75)
     order_2 = Order("2024-02-01", 1, 3.5)
     order_3 = Order("2024-01-22", 1, 28.18)
-    
 
-    asset_1 = Asset("Genfit", "Genfit SA", "GNFT.PA", "XTB", "EUR", [order_1])
-    asset_1.add_orders([order_2])
+    asset_1 = Asset("Genfit", "Genfit SA", "GNFT.PA", "XTB", "EUR", [order_1, order_2])
+    asset_2 = Asset("Spie", "Spie SA", "SPIE.PA", "XTB", "EUR", [order_3])
 
-    asset_2 = Asset("Spie", "Spie SA", "SPIE.PA", "XTB", "EUR")
-    asset_2.add_orders([order_3])
-
-    assets_1 = Assets([asset_1])
-    assets_1.add_asset(asset_2)
-
-    assets_2 = Assets()
-    assets_2.add_asset(asset_1)
-    assets_2.add_asset(asset_2)
+    assets_1 = Assets([asset_1, asset_2])
+    assets_2 = Assets([asset_1, asset_2])
 
     today = date.today()
     end_date = today.strftime("%Y-%m-%d")
     save_dir = Path("")
     filename_sufix = FILENAME_SUFIX
     interval = "1d"
-    download_histories(assets=assets_1,
-                       end_date=end_date,
-                       save_dir=save_dir,
-                       filename_sufix=filename_sufix,
-                       interval=interval)
+    download_histories(assets_1, end_date, save_dir, filename_sufix, interval)
 
-    assets_1 = load_histories(assets=assets_1,
-                              save_dir=save_dir,
-                              filename_sufix=filename_sufix)
-    assets_2 = load_histories(assets=assets_2,
-                              save_dir=save_dir,
-                              filename_sufix=filename_sufix)
+    assets_1 = load_histories(assets_1, save_dir, filename_sufix)
+    assets_2 = load_histories(assets_2, save_dir, filename_sufix)
     
     dates = get_dates(assets_1)
     if DEBUG : print("dates =\n", dates)
 
-    wallet_1 = Wallet(dates)
-    wallet_2 = Wallet(dates)
+    wallet_1 = Wallet(assets_1)
+    wallet_2 = Wallet(assets_2)
     if DEBUG : print("wallet_1 =\n", wallet_1)
-    if DEBUG : print("wallet_2 =\n", wallet_2)
-
     if DEBUG : print("wallet_1.dates =\n", wallet_1.dates)
-    wallet_1 = get_wallet_valuation(wallet_1,
-                                    assets_1)
+
+    wallet_1 = get_wallet_valuation(wallet_1)
     if DEBUG : print("wallet_1 =\n", wallet_1.to_dict())
     if DEBUG : print("wallet_1.valuation      = ", wallet_1.valuation)
     if DEBUG : print("wallet_1.twrr_cumulated = ", wallet_1.twrr_cumulated)
-    wallet_2 = get_wallet_valuation(wallet_2,
-                                    assets_2)
 
-    
-    wallet_2 = get_wallet_share_value(wallet=wallet_2,
-                                      assets=assets_2)
+    wallet_2 = get_wallet_valuation(wallet_2)
+    wallet_2 = get_wallet_share_value(wallet_2)
+
     if DEBUG : print("wallet_2.valuation      = ", wallet_2.valuation)
     if DEBUG : print("wallet_2.twrr_cumulated = ", wallet_2.twrr_cumulated)
     if DEBUG : print("wallet_2.share_value    = ", wallet_2.share_value)
     
-    wallet_2 = get_wallet_share_value_2(wallet=wallet_2,
-                                        nb_part=1)
+    wallet_2 = get_wallet_share_value_2(wallet=wallet_2, nb_part=1)
     if DEBUG : print("wallet_2.share_value_2  = ", wallet_2.share_value_2)
     print("assets_2 =\n", assets_2.to_dict())
     print("wallet_2 =\n", wallet_2.to_dict())
