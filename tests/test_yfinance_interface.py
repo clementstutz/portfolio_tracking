@@ -1,5 +1,5 @@
-from .download_history_prices import Wallet, get_dates
-from .yfinance_interface import Asset, Assets, Order
+from portfolio_tracking.download_history_prices import Wallet, get_dates
+from portfolio_tracking.yfinance_interface import Asset, Assets, Order
 
 
 def test_orders():

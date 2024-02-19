@@ -2,7 +2,7 @@ from datetime import date
 from pathlib import Path
 from typing import Dict, List
 import matplotlib.pyplot as plt
-from yfinance_interface import FILENAME_SUFIX, Asset, Assets, Order, download_histories, load_histories
+from portfolio_tracking.yfinance_interface import FILENAME_SUFIX, Asset, Assets, Order, download_histories, load_histories
 
 DEBUG = True
 
@@ -88,7 +88,7 @@ def get_dates(assets: Assets) -> List:  # OK !
         dates_temp.update(asset.dates)
     return list(sorted(dates_temp))
 
-def _get_close_price_of_a_day(date: str, asset: Asset, wallet: Wallet):  # OK !
+def _get_close_price_of_a_day(date: str, asset: Asset, wallet: Wallet) -> float:  # OK !
     if date in asset.dates:
         date_index = asset.dates.index(date)
         return asset.closes[date_index]
@@ -97,7 +97,7 @@ def _get_close_price_of_a_day(date: str, asset: Asset, wallet: Wallet):  # OK !
     previous_date_index = asset.dates.index(previous_date)
     return asset.closes[previous_date_index]
 
-def _get_new_investement(date: str, asset: Asset, actions_count: Dict):  # OK !
+def _get_new_investement(date: str, asset: Asset, actions_count: Dict) -> float:  # OK !
     for order in asset.orders:
         # TODO : what if order.date is between two consecutive dates ?
         if date == order.date:
@@ -105,7 +105,7 @@ def _get_new_investement(date: str, asset: Asset, actions_count: Dict):  # OK !
             return order.price * order.quantity
     return 0
 
-def _get_wallet_time_weighted_rates_of_return(previous_value: float, current_value: float, cash_flow: float):  # OK ..?
+def _get_wallet_time_weighted_rates_of_return(previous_value: float, current_value: float, cash_flow: float) -> float:  # OK ..?
     """
     https://www.investopedia.com/terms/t/time-weightedror.asp
     TWR=[(1+HP1)x(1+HP2)×⋯×(1+HPn)]-1
@@ -223,22 +223,22 @@ def get_wallet_money_weighted_rates_of_return():
     # TODO : impementer cette fonction
     """
     https://www.investopedia.com/terms/m/money-weighted-return.asp
-    PVO=PVI=CF0​+CF1​​/(1+IRR)+CF2​​/(1+IRR)^2+CF3​​/(1+IRR)^3+...+CFn/(1+IRR)^n
-    ​​where:
+    PVO=PVI=CF0+CF1/(1+IRR)+CF2/(1+IRR)^2+CF3/(1+IRR)^3+...+CFn/(1+IRR)^n
+    where:
     PVO=PV Outflows
     PVI=PV Inflows
-    CF0​=Initial cash outlay or investment
-    CF1​,CF2​,CF3​,...CFn​=Cash flows
+    CF0=Initial cash outlay or investment
+    CF1,CF2,CF3,...CFn=Cash flows
     N=Each period
-    IRR=Initial rate of return​
+    IRR=Initial rate of return
     """
     return 0
 
-def get_wallet_TRI(wallet_history):
+def get_wallet_TRI(wallet):
     # TODO : impementer cette fonction
-    wallet_history['TRI'] = []
+    wallet['TRI'] = []
 
-    return wallet_history
+    return wallet
 
 
 if __name__ == '__main__':
@@ -255,7 +255,7 @@ if __name__ == '__main__':
 
     today = date.today()
     end_date = today.strftime("%Y-%m-%d")
-    save_dir = Path("")
+    save_dir = Path(__file__).parent.absolute() / "histories"
     filename_sufix = FILENAME_SUFIX
     interval = "1d"
     download_histories(assets_1, end_date, save_dir, filename_sufix, interval)
