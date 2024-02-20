@@ -74,6 +74,7 @@ def _normalized_name(name: str) -> str:
 
 
 def _get_history(asset: Assets, end_date: str, save_dir: Path, filename_sufix: str, interval: str='1d'):
+    # TODO : Add a function that checks if history already exist, and if it does, download only missing datas.
     # TODO : Why not use yf.Ticker("the_ticker").history() ?
     data = yf.download(tickers=asset.ticker,
                        start=asset.orders[0].date,
