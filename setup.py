@@ -21,7 +21,8 @@ setup(
     author="Clément STUTZ",
     packages=find_packages(),
     install_requires=[
-        "yfinance",  # Ajoutez ici toutes les dépendances requises par votre projet
+        "yfinance",
+        "matplotlib",  # Ajoutez ici toutes les dépendances requises par votre projet
     ],
     extras_require={
             'dev' : ["pytest"]
