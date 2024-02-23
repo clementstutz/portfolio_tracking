@@ -8,30 +8,6 @@ import yfinance as yf
 FILENAME_SUFIX = '_history.csv'
 
 
-def _normalized_name(name: str) -> str:
-    return name.replace(' ', '_')\
-        .replace('-', '_')\
-        .replace('.', '_')\
-
-
-def rebuild_assets_structure(assets_data):
-        """Recréer les objets à partir des données lues depuis le fichier JSON"""
-        # TODO : Ajouter dates et closes ???
-        restored_assets = Assets([Asset(
-            asset_data["short_name"],
-            asset_data["name"],
-            asset_data["ticker"],
-            asset_data["broker"],
-            asset_data["devise"],
-            [Order(
-                order_data["date"],
-                order_data["quantity"],
-                order_data["price"]
-            ) for order_data in asset_data["orders"]]
-        ) for asset_data in assets_data["assets"]])
-        return restored_assets
-
-
 class Order:
     def __init__(self, date: str, quantity: float, price: float) -> None:
         self.date = date
@@ -162,3 +138,26 @@ class Assets:
             dates_temp.update(asset.dates)
         return list(sorted(dates_temp))
 
+
+def _normalized_name(name: str) -> str:
+    return name.replace(' ', '_')\
+        .replace('-', '_')\
+        .replace('.', '_')\
+
+
+def rebuild_assets_structure(assets_data) -> Assets:
+        """Recréer les objets à partir des données lues depuis le fichier JSON"""
+        # TODO : Ajouter dates et closes ???
+        restored_assets = Assets([Asset(
+            asset_data["short_name"],
+            asset_data["name"],
+            asset_data["ticker"],
+            asset_data["broker"],
+            asset_data["devise"],
+            [Order(
+                order_data["date"],
+                order_data["quantity"],
+                order_data["price"]
+            ) for order_data in asset_data["orders"]]
+        ) for asset_data in assets_data["assets"]])
+        return restored_assets

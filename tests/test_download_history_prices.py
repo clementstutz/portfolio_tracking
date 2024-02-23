@@ -1,4 +1,4 @@
-from portfolio_tracking.download_history_prices import Wallet, get_dates
+from portfolio_tracking.wallet_data import Wallet
 from portfolio_tracking.yfinance_interface import Asset, Assets, Order
 
 
@@ -33,7 +33,7 @@ def test_wallet():
 
     wallet_dic = {
         "assets": [asset_1.to_dict(), asset_2.to_dict()],
-        "dates": get_dates(assets),
+        "dates": assets.get_dates(),
         "valuation": [],
         "devise": "EUR",
         "investment": [],
@@ -45,5 +45,5 @@ def test_wallet():
     }
 
     assert(wallet.assets == assets.assets)
-    assert(wallet.dates == get_dates(assets))
+    assert(wallet.dates == assets.get_dates())
     assert(wallet.to_dict() == wallet_dic)
