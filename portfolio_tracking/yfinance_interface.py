@@ -276,13 +276,14 @@ class Asset:
         """
         csv_filename = Path(f"{_normalized_name(self.short_name)}_{self.currency}_{filename_sufix}")
         file_path = save_dir / csv_filename
+
         try:
             # Lire le fichier CSV en utilisant pandas
             df = pd.read_csv(file_path, usecols=["Date", "Close"], parse_dates=["Date"])
 
             # Remplacer les valeurs "null" ou NaN dans la colonne 'Close'
-            df['Close'].replace('null', pd.NA, inplace=True)
-            df['Close'].fillna(method='ffill', inplace=True)  # Utiliser la méthode forward fill pour remplacer les NaN
+            df['Close'] = df['Close'].replace('null', pd.NA)
+            df['Close'] = df['Close'].ffill()  # Utiliser la méthode forward fill pour remplacer les NaN
 
             if df['Close'].isna().any():
                 raise ValueError(f"Le fichier {csv_filename} contient des valeurs 'Close' manquantes ou invalides.")
