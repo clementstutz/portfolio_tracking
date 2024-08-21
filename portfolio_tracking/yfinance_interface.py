@@ -174,7 +174,7 @@ class Asset:
                 self._update_with_new_data(file_path, last_date, end_date, interval)
 
             else :
-                print(f"Aucune nouvelle donnée à télécharger pour {self.ticker}, les données sont déjà à jour.")
+                print(f"Aucune nouvelle donnée à télécharger pour {self.short_name}, les données sont déjà à jour.")
 
         else :
             # Créer un nouveau fichier avec toutes les données si le fichier n'existe pas
@@ -183,7 +183,7 @@ class Asset:
         # Charger les données existantes et les renvoie
         return pd.read_csv(file_path, index_col='Date', parse_dates=True)
 
-    def _convert_to_another_currency(self, price_data: pd.DataFrame, currency_data: pd.DataFrame) -> pd.DataFrame:
+    def _convert_to_another_currency(self, price_data: pd.DataFrame, currency_data: pd.DataFrame, currency: str) -> pd.DataFrame:
         """
         Convertit les prix d'un actif dans la devise locale vers l'euro, en utilisant l'historique des taux de change.
         """
@@ -199,6 +199,7 @@ class Asset:
             if elem != "Volume":
                 price_data_aligned[elem] = price_data_aligned[elem] / currency_data[elem]
 
+        self.currency = currency
         return price_data_aligned
 
     def _dowload_currency(self, wallet_currency: str, end_date: str, save_dir: Path, filename_sufix: str, interval: str) -> pd.DataFrame:
@@ -243,7 +244,7 @@ class Asset:
 
         if currency_data is not None:
             # Convertir les prix de l'actif dans la devise cible
-            converted_data = self._convert_to_another_currency(price_data, currency_data)
+            converted_data = self._convert_to_another_currency(price_data, currency_data, currency)
 
             # Sauvegarder les données converties
             file_path = save_dir / Path(f"{_normalized_name(self.short_name)}_{currency}_{filename_sufix}")
