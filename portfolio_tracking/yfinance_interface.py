@@ -6,7 +6,7 @@ import pandas as pd
 import yfinance as yf
 
 
-FILENAME_SUFIX = '_history.csv'
+FILENAME_SUFIX = 'history.csv'
 COLUMNS_ORDER = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
 DICT_CURRENCY = {"EURUSD": "EURUSD=X",
                  "EURGBP": "EURGBP=X"}
@@ -158,7 +158,7 @@ class Asset:
         """
         Télécharge les données boursières et met à jour le fichier CSV avec les nouvelles données.
         """
-        file_path = save_dir / Path(f"{_normalized_name(self.short_name)}{filename_sufix}")
+        file_path = save_dir / Path(f"{_normalized_name(self.short_name)}_{self.currency}_{filename_sufix}")
 
         if file_path.is_file() :
             # FIXME : Ne fonctionne surement pas avec les jour fériers !
@@ -170,10 +170,7 @@ class Asset:
                 self._update_with_old_data(file_path, first_date, interval)
 
             # Vérifier si des données plus récentes doivent être téléchargées
-            print(f"last_date = {last_date}")
-            print(f"end_date = {end_date}")
             if pd.to_datetime(last_date) + pd.Timedelta(days=1) < pd.to_datetime(end_date):
-                print("dans if pd.to_datetime(last_date) + pd.Timedelta(days=1) < pd.to_datetime(end_date):")
                 self._update_with_new_data(file_path, last_date, end_date, interval)
 
             else :
@@ -221,7 +218,7 @@ class Asset:
                          name=currency_name,
                          ticker=currency_ticker,
                          broker="None",
-                         currency="None",
+                         currency="",
                          list_of_orders=[Order(self.orders[0].date, 1, 1)])
 
         # Télécharger l'historique de la paire de devises
@@ -249,7 +246,7 @@ class Asset:
             converted_data = self._convert_to_another_currency(price_data, currency_data)
 
             # Sauvegarder les données converties
-            file_path = save_dir / Path(f"{_normalized_name(self.short_name)}_in_eur{filename_sufix}")
+            file_path = save_dir / Path(f"{_normalized_name(self.short_name)}_{currency}_{filename_sufix}")
             converted_data.to_csv(file_path, float_format="%.4f", index=True)
             print(f"L'historique de {self.ticker} a été converti en {currency} et enregistré sous {file_path}.")
         else:
@@ -273,25 +270,36 @@ class Asset:
                                   filename_sufix,
                                   interval)
 
-    def load_history(self, save_dir: str, filename_sufix: str=FILENAME_SUFIX) -> None:
-        dates = []
-        close = []
-        csv_filename = f"{_normalized_name(self.short_name)}{filename_sufix}"
-        with open(Path(save_dir) / csv_filename, 'r', encoding='utf-8') as csvfile:
-            csvreader = csv.DictReader(csvfile)
-            # Parcourir les lignes du fichier CSV
-            for row in csvreader:
-                if not 'null' in row['Close']:
-                    # row est un dictionnaire où les clés sont les noms de colonnes
-                    dates.append(row['Date'])
-                    close.append(float(row['Close']))
-                else:
-                    print(f'ERROR in file: {csv_filename}, row = {row}')
-                    # TODO: Trouver mieux que ça...
-                    dates.append(row['Date'])
-                    close.append(close[-1])
-        self.add_dates(dates)
-        self.add_closes(close)
+    def load_history(self, save_dir: Path, filename_sufix: str=FILENAME_SUFIX) -> None:
+        """
+        Charge l'historique des prix de l'action à partir d'un fichier CSV et met à jour les attributs `dates` et `closes`.
+        """
+        csv_filename = Path(f"{_normalized_name(self.short_name)}_{self.currency}_{filename_sufix}")
+        file_path = save_dir / csv_filename
+        try:
+            # Lire le fichier CSV en utilisant pandas
+            df = pd.read_csv(file_path, usecols=["Date", "Close"], parse_dates=["Date"])
+
+            # Remplacer les valeurs "null" ou NaN dans la colonne 'Close'
+            df['Close'].replace('null', pd.NA, inplace=True)
+            df['Close'].fillna(method='ffill', inplace=True)  # Utiliser la méthode forward fill pour remplacer les NaN
+
+            if df['Close'].isna().any():
+                raise ValueError(f"Le fichier {csv_filename} contient des valeurs 'Close' manquantes ou invalides.")
+
+            # Extraire les dates et les prix de clôture
+            self.add_dates(df['Date'].dt.strftime('%Y-%m-%d').tolist())
+            self.add_closes(df['Close'].astype(float).tolist())
+
+        except FileNotFoundError:
+            print(f"Le fichier {csv_filename} n'a pas été trouvé dans le répertoire {save_dir}.")
+        except pd.errors.EmptyDataError:
+            print(f"Le fichier {csv_filename} est vide ou ne contient aucune donnée valide.")
+        except ValueError as ve:
+            print(f"Erreur lors du chargement des données depuis {csv_filename} : {ve}")
+        except Exception as e:
+            print(f"Une erreur inattendue est survenue lors du chargement de {csv_filename} : {e}")
+
 
 
 class Assets:
@@ -332,8 +340,7 @@ class Assets:
 def _normalized_name(name: str) -> str:
     return name.replace(' ', '_')\
         .replace('-', '_')\
-        .replace('.', '_')\
-        .lower()
+        .replace('.', '_')
 
 
 def rebuild_assets_structure(assets_data) -> Assets:
