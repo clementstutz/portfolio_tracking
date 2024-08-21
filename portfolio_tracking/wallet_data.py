@@ -192,7 +192,9 @@ class Wallet:
 
         twrr_cumulated = []
         twrr = []
-        twrr_cumulated.append(normalized_wallet_value)
+        # Initialisation
+        twrr.append(_get_wallet_TWRR(self.investments[0], self.valuations[0], 0))
+        twrr_cumulated.append(normalized_wallet_value * (1 + twrr[-1]))
 
         start_date, end_date = _check_dates_boundaries(start_date, end_date, self.dates[0], self.dates[-1])
         dates = [date for date in self.dates[self.dates.index(start_date):self.dates.index(end_date)+1]]
@@ -246,25 +248,23 @@ if __name__ == '__main__':
     filename_sufix = FILENAME_SUFIX
     interval = "1d"
     assets_1.download_histories(end_date, save_dir, filename_sufix, interval)
-    # assets_1.load_histories(save_dir, filename_sufix)
+    assets_1.load_histories(save_dir, filename_sufix)
 
-    # wallet_1 = Wallet(assets_1)
-    # # if DEBUG : print("wallet_1 =\n", wallet_1.to_dict())
+    wallet_1 = Wallet(assets_1)
+    # if DEBUG : print("wallet_1 =\n", wallet_1.to_dict())
     # if DEBUG : print("wallet_1.dates =\n", wallet_1.dates)
     # if DEBUG : print("len(dates) =\n", len(wallet_1.dates))
 
 
-    # wallet_1.get_wallet_valuation()
-    # if DEBUG : print("wallet_1.valuations =\n", wallet_1.valuations)
-    # if DEBUG : print("len(valuations) =\n", len(wallet_1.valuations))
-    # if DEBUG : print("wallet_1.investments =\n", wallet_1.investments)
-    # if DEBUG : print("len(investments) =\n", len(wallet_1.investments))
+    wallet_1.get_wallet_valuation()
+    if DEBUG : print("wallet_1.valuations =\n", wallet_1.valuations)
+    if DEBUG : print("wallet_1.investments =\n", wallet_1.investments)
 
-    # twrr_cumulated, dates, twrr = wallet_1.get_wallet_TWRR(wallet_1.dates[0], wallet_1.dates[-1])
-    # if DEBUG : print("twrr_cumulated =\n", twrr_cumulated)
-    # if DEBUG : print("len(twrr_cumulated) =\n", len(twrr_cumulated))
-    # if DEBUG : print("twrr =\n", twrr)
-    # if DEBUG : print("len(twrr) =\n", len(twrr))
+    twrr_cumulated, dates, twrr = wallet_1.get_wallet_TWRR(wallet_1.dates[0], wallet_1.dates[-1])
+    if DEBUG : print("twrr_cumulated =\n", twrr_cumulated)
+    if DEBUG : print("len(twrr_cumulated) =\n", len(twrr_cumulated))
+    if DEBUG : print("twrr =\n", twrr)
+    if DEBUG : print("len(twrr) =\n", len(twrr))
 
     # share_value = wallet_1.get_wallet_share_value(wallet_1.dates[0], wallet_1.dates[-1])
     # if DEBUG : print("share_value =\n", share_value)
