@@ -3,8 +3,8 @@ from pathlib import Path
 from time import sleep
 from typing import Dict, List, Tuple
 from portfolio_tracking.yfinance_interface import FILENAME_SUFIX, Asset, Assets, Order
-import numpy_financial as npf
-import QuantLib as ql
+# import numpy_financial as npf
+# import QuantLib as ql
 
 
 DEBUG = True
@@ -50,10 +50,10 @@ def _check_dates_boundaries(start, end, lower_bound, upper_bound):
         temp = start
         start = end
         end = temp
-    
+
     if start < lower_bound:
         start = lower_bound
-    
+
     if end > upper_bound:
         end = upper_bound
 
@@ -61,9 +61,9 @@ def _check_dates_boundaries(start, end, lower_bound, upper_bound):
 
 
 class Wallet:
-    def __init__(self, assets: Assets, valuation: List=None, devise: str="EUR") -> None:
+    def __init__(self, assets: Assets, valuation: List=None, currency: str="EUR") -> None:
         self.assets = assets.assets
-        self.devise = devise
+        self.currency = currency
         self.dates = assets.get_dates()
         self.valuations = [] if valuation is None else valuation
         self.investments = []  # TODO: rename it into cash_flow
@@ -77,7 +77,7 @@ class Wallet:
     def to_dict(self) -> Dict:
         return {
             "assets": [asset.to_dict() for asset in self.assets],  # TODO : change for asset insted ?
-            "devise": self.devise,
+            "currency": self.currency,
             "dates": self.dates,
             "valuations": self.valuations,
             "investments": self.investments,
@@ -117,7 +117,7 @@ class Wallet:
                     total_valuation += close_price * actions_count[asset.short_name]
                 else:
                     pass
-            
+
             self.valuations.append(total_valuation)
             self.investments.append(investment)
         return self.valuations, self.investments
@@ -127,10 +127,10 @@ class Wallet:
         and calculates the value of that share."""
         if self.valuations == []:
             self.get_wallet_valuation()
-        
+
         share_value = [init_share_value]
         actions_count = {asset.short_name: asset.orders[0].quantity for asset in self.assets}
-        
+
         start_date, end_date = _check_dates_boundaries(start_date, end_date, self.dates[1], self.dates[-1])
         dates = [date for date in self.dates[self.dates.index(start_date):self.dates.index(end_date)+1]]
         for date in dates:
@@ -157,7 +157,7 @@ class Wallet:
         and calculates the value of those shares and their number."""
         if self.valuations == []:
             self.get_wallet_valuation()
-        
+
         share_value_2 = []
         share_number_2 = []
         share_value_2.append(self.valuations[0] / init_nb_part)
@@ -193,7 +193,7 @@ class Wallet:
         twrr_cumulated = []
         twrr = []
         twrr_cumulated.append(normalized_wallet_value)
-        
+
         start_date, end_date = _check_dates_boundaries(start_date, end_date, self.dates[0], self.dates[-1])
         dates = [date for date in self.dates[self.dates.index(start_date):self.dates.index(end_date)+1]]
         for date in dates[1:]:  # TODO : voir si ce n'est pas mieux de boucler sur les assets plutôt que sur les dates.
@@ -231,11 +231,11 @@ class Wallet:
 
 if __name__ == '__main__':
 
-    order_1 = Order("2024-02-12", 1, 3.75)
-    order_2 = Order("2024-02-19", 1, 3.5)
-    order_3 = Order("2024-02-12", 1, 28.18)
+    order_1 = Order("2024-08-12", 1, 3.75)
+    order_2 = Order("2024-08-15", 1, 3.5)
+    order_3 = Order("2024-08-15", 1, 28.18)
 
-    asset_1 = Asset("Genfit", "Genfit SA", "GNFT.PA", "XTB", "EUR", [order_1, order_2])
+    asset_1 = Asset("Genfit", "Genfit SA", "GNFT.PA", "XTB", "USD", [order_1, order_2])
     asset_2 = Asset("Spie", "Spie SA", "SPIE.PA", "XTB", "EUR", [order_3])
 
     assets_1 = Assets([asset_1, asset_2])
@@ -245,47 +245,47 @@ if __name__ == '__main__':
     save_dir = Path(__file__).parent.absolute() / "histories"
     filename_sufix = FILENAME_SUFIX
     interval = "1d"
-    # assets_1.download_histories(end_date, save_dir, filename_sufix, interval)
-    assets_1.load_histories(save_dir, filename_sufix)
-    
-    wallet_1 = Wallet(assets_1)
-    # if DEBUG : print("wallet_1 =\n", wallet_1.to_dict())
-    if DEBUG : print("wallet_1.dates =\n", wallet_1.dates)
-    if DEBUG : print("len(dates) =\n", len(wallet_1.dates))
+    assets_1.download_histories(end_date, save_dir, filename_sufix, interval)
+    # assets_1.load_histories(save_dir, filename_sufix)
+
+    # wallet_1 = Wallet(assets_1)
+    # # if DEBUG : print("wallet_1 =\n", wallet_1.to_dict())
+    # if DEBUG : print("wallet_1.dates =\n", wallet_1.dates)
+    # if DEBUG : print("len(dates) =\n", len(wallet_1.dates))
 
 
-    wallet_1.get_wallet_valuation()
-    if DEBUG : print("wallet_1.valuations =\n", wallet_1.valuations)
-    if DEBUG : print("len(valuations) =\n", len(wallet_1.valuations))
-    if DEBUG : print("wallet_1.investments =\n", wallet_1.investments)
-    if DEBUG : print("len(investments) =\n", len(wallet_1.investments))
+    # wallet_1.get_wallet_valuation()
+    # if DEBUG : print("wallet_1.valuations =\n", wallet_1.valuations)
+    # if DEBUG : print("len(valuations) =\n", len(wallet_1.valuations))
+    # if DEBUG : print("wallet_1.investments =\n", wallet_1.investments)
+    # if DEBUG : print("len(investments) =\n", len(wallet_1.investments))
 
-    twrr_cumulated, dates, twrr = wallet_1.get_wallet_TWRR(wallet_1.dates[0], wallet_1.dates[-1])
-    if DEBUG : print("twrr_cumulated =\n", twrr_cumulated)
-    if DEBUG : print("len(twrr_cumulated) =\n", len(twrr_cumulated))
-    if DEBUG : print("twrr =\n", twrr)
-    if DEBUG : print("len(twrr) =\n", len(twrr))
+    # twrr_cumulated, dates, twrr = wallet_1.get_wallet_TWRR(wallet_1.dates[0], wallet_1.dates[-1])
+    # if DEBUG : print("twrr_cumulated =\n", twrr_cumulated)
+    # if DEBUG : print("len(twrr_cumulated) =\n", len(twrr_cumulated))
+    # if DEBUG : print("twrr =\n", twrr)
+    # if DEBUG : print("len(twrr) =\n", len(twrr))
 
-    share_value = wallet_1.get_wallet_share_value(wallet_1.dates[0], wallet_1.dates[-1])
-    if DEBUG : print("share_value =\n", share_value)
-    if DEBUG : print("len(share_value) =\n", len(share_value))
-    
-    share_value_2, share_number_2 = wallet_1.get_wallet_share_value_2(wallet_1.dates[0], wallet_1.dates[-1])
-    if DEBUG : print("share_value_2 =\n", share_value_2)
-    if DEBUG : print("len(share_value_2) =\n", len(share_value_2))
-    if DEBUG : print("share_number_2 =\n", share_number_2)
-    if DEBUG : print("len(share_number_2) =\n", len(share_number_2))
+    # share_value = wallet_1.get_wallet_share_value(wallet_1.dates[0], wallet_1.dates[-1])
+    # if DEBUG : print("share_value =\n", share_value)
+    # if DEBUG : print("len(share_value) =\n", len(share_value))
 
-
-    # cash_flows = [-25, 10, 15, 20, 25, 30]
-    # irr = npf.irr(cash_flows)
-    # print("IRR:", irr)
+    # share_value_2, share_number_2 = wallet_1.get_wallet_share_value_2(wallet_1.dates[0], wallet_1.dates[-1])
+    # if DEBUG : print("share_value_2 =\n", share_value_2)
+    # if DEBUG : print("len(share_value_2) =\n", len(share_value_2))
+    # if DEBUG : print("share_number_2 =\n", share_number_2)
+    # if DEBUG : print("len(share_number_2) =\n", len(share_number_2))
 
 
+    # # cash_flows = [-25, 10, 15, 20, 25, 30]
+    # # irr = npf.irr(cash_flows)
+    # # print("IRR:", irr)
 
-    # dates = [ql.Date(1, 1, 2022), ql.Date(1, 1, 2023), ql.Date(1, 1, 2024)]
-    # flows = [-100, 50, 40]
-    # npv = 0
-    # guess = 0.1
-    # irr = ql.Irr(flows, npv, guess)
-    # print("IRR:", irr)
+
+
+    # # dates = [ql.Date(1, 1, 2022), ql.Date(1, 1, 2023), ql.Date(1, 1, 2024)]
+    # # flows = [-100, 50, 40]
+    # # npv = 0
+    # # guess = 0.1
+    # # irr = ql.Irr(flows, npv, guess)
+    # # print("IRR:", irr)
