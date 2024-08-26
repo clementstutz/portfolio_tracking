@@ -1,11 +1,15 @@
 import csv
 from datetime import datetime
+import json
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 import pandas as pd
 import yfinance as yf
 
 
+STOCKS_HISTORIES_DIR = Path(__file__).parent.absolute() / "histories"
+ASSETS_JSON_FILENAME = "assets_real.json"
+ARCHIVES_FILENAME = "Archives"
 FILENAME_SUFIX = 'history.csv'
 COLUMNS_ORDER = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
 DICT_CURRENCY = {"EURUSD": "EURUSD=X",
@@ -33,6 +37,7 @@ class Asset:
         self.broker = broker
         self.currency = currency
         self.orders = [] if list_of_orders is None else list_of_orders
+        self.quantity = 0
         self.dates = []
         self.closes = []
 
@@ -100,7 +105,19 @@ class Asset:
 
         return last_date
 
-    def _download_data(self, start_date: str, end_date: str, interval: str) -> pd.DataFrame:
+    def _get_data_from_archives(self, start_date: str, end_date: str, file_path: Path) -> pd.DataFrame:
+        # TODO: vérifier que les dates demandes sont bien dans l'archive!
+
+        archived_data = pd.read_csv(file_path, index_col='Date', parse_dates=True)
+
+        # Filtrer les données archivées pour la période demandée
+        archived_data_filtered = archived_data.loc[start_date:end_date]
+
+        # Fusionner les données archivées avec les nouvelles données
+        data = archived_data_filtered
+        return data
+
+    def _download_data(self, start_date: str, end_date: str, interval: str, save_dir, filename_sufix) -> pd.DataFrame:
         """
         Télécharge les données de bourse pour la période donnée.
         """
@@ -110,75 +127,119 @@ class Asset:
                            end=end_date,
                            interval=interval)
         if data.empty:
-            raise ValueError(f"Aucune donnée n'a été téléchargée pour {self.ticker} entre {start_date} et {end_date}")
+            # If the download failed, check the Archives directory if there is data for this asset.
+            archives_dir_path = Path(save_dir / ARCHIVES_FILENAME)
+            file_path = archives_dir_path / f"{_normalized_name(self.short_name)}_{self.currency}_{filename_sufix}"
+            if file_path.is_file() :
+                return self._get_data_from_archives(start_date, end_date, file_path)
+            else :
+                # TODO: Try another method to get the datas!
+                # could be done with another API (ex. Investing API (investpy on PyPi))
+                # return data
+                pass
+            # raise ValueError(f"Aucune donnée n'a été téléchargée pour {self.ticker} entre {start_date} et {end_date}")
         return data
 
     def _append_new_data(self, existing_data: pd.DataFrame, new_data: pd.DataFrame) -> pd.DataFrame:
         """
         Combine les nouvelles données avec les données existantes et les trie par date.
         """
+        if new_data.empty:
+            # Si les nouvelles données sont vides, retourner simplement les données existantes
+            return existing_data[COLUMNS_ORDER].sort_index()
+
+        # Si aucune des deux n'est vide, les concaténer
         combined_data = pd.concat([existing_data, new_data])
         return combined_data[COLUMNS_ORDER].sort_index()
 
-    def _update_with_old_data(self, file_path: Path, first_date: str, interval: str) -> None:
+    def _update_with_old_data(self, file_path: Path, first_date: str, interval: str, save_dir, filename_sufix) -> None:
         """
         Télécharge et ajoute les données manquantes antérieures à la première date du fichier existant.
         """
         old_data = self._download_data(start_date=self.orders[0].date,
-                                       end_date=pd.to_datetime(first_date),
-                                       interval=interval)
+                                       end_date=pd.to_datetime(first_date).strftime('%Y-%m-%d'),
+                                       interval=interval,
+                                       save_dir=save_dir,
+                                       filename_sufix=filename_sufix)
         existing_data = pd.read_csv(file_path, index_col='Date', parse_dates=True)
         combined_data = self._append_new_data(old_data, existing_data)
         combined_data.to_csv(file_path, float_format="%.4f", index=True)
         print(f"Le fichier CSV a été mis à jour avec d'anciennes données et sauvegardé sous {file_path}")
 
-    def _update_with_new_data(self, file_path: Path, last_date: str, end_date: str, interval: str) -> None:
+    def _update_with_new_data(self, file_path: Path, last_date: str, end_date: str, interval: str, save_dir, filename_sufix) -> None:
         """
         Télécharge et ajoute les données manquantes postérieures à la dernière date du fichier existant.
         """
         new_data = self._download_data(start_date=pd.to_datetime(last_date) + pd.Timedelta(days=1),
                                        end_date=end_date,
-                                       interval=interval)
+                                       interval=interval,
+                                       save_dir=save_dir,
+                                       filename_sufix=filename_sufix)
         existing_data = pd.read_csv(file_path, index_col='Date', parse_dates=True)
         combined_data = self._append_new_data(existing_data, new_data)
         combined_data.to_csv(file_path, float_format="%.4f", index=True)
         print(f'Le fichier CSV a été mis à jour avec de nouvelles données et sauvegardé sous {file_path}')
 
-    def _initialize_new_file(self, file_path: Path, end_date: str, interval: str) -> None:
+    def _initialize_new_file(self, file_path: Path, end_date: str, save_dir: Path, filename_sufix: str, interval: str) -> None:
         """
         Télécharge toutes les données et crée un nouveau fichier CSV si celui-ci n'existe pas.
         """
-        data = self._download_data(start_date=self.orders[0].date, end_date=end_date, interval=interval)
+        data = self._download_data(start_date=self.orders[0].date,
+                                   end_date=end_date,
+                                   interval=interval,
+                                   save_dir=save_dir,
+                                   filename_sufix=filename_sufix)
         # Réordonner les colonnes et s'assurer qu'elles sont ordonnées par date
         data = data[COLUMNS_ORDER].sort_index()
         data.to_csv(file_path, float_format="%.4f", index=True)
         print(f'Le fichier CSV a été sauvegardé avec succès sous {file_path}')
+
+    def _get_first_detention_date(self) :
+        return self.orders[0].date
+
+    def _get_last_detention_date(self, date) :
+        self.quantity = 0
+        for order in self.orders:
+            self.quantity += order.quantity
+
+        if self.quantity == 0 :
+            if pd.to_datetime(self.orders[-1].date) + pd.Timedelta(days=1) <= pd.to_datetime(date) :
+                return pd.to_datetime(self.orders[-1].date) + pd.Timedelta(days=1)
+        return date
+
+    def _update_history(self, file_path: Path, end_date: str, save_dir: Path, filename_sufix: str, interval: str) -> pd.DataFrame:
+        # FIXME : Ne fonctionne surement pas avec les jour fériers !
+        first_date = self._get_first_date_from_csv(file_path)
+        last_date = self._get_last_date_from_csv(file_path)
+
+        # Vérifier si des données plus anciennes doivent être téléchargées
+        if pd.to_datetime(self.orders[0].date) < pd.to_datetime(first_date) :
+            self._update_with_old_data(file_path, first_date, interval, save_dir, filename_sufix)
+
+        # Vérifier si des données plus récentes doivent être téléchargées
+        end_date = self._get_last_detention_date(end_date)
+        # TODO: change the value "2" of pd.Timedelta(days=2) to "1", but need to manage case of dalayed data
+        if pd.to_datetime(last_date) + pd.Timedelta(days=2) < pd.to_datetime(end_date):
+            self._update_with_new_data(file_path, last_date, end_date, interval, save_dir, filename_sufix)
+
+        else :
+            print(f"Aucune nouvelle donnée à télécharger pour {self.short_name}, les données sont déjà à jour.")
+
+        return pd.read_csv(file_path, index_col='Date', parse_dates=True)
 
     def _get_history(self, end_date: str, save_dir: Path, filename_sufix: str, interval: str) -> pd.DataFrame:
         """
         Télécharge les données boursières et met à jour le fichier CSV avec les nouvelles données.
         """
         file_path = save_dir / Path(f"{_normalized_name(self.short_name)}_{self.currency}_{filename_sufix}")
+        end_date = self._get_last_detention_date(end_date)
 
-        if file_path.is_file() :
-            # FIXME : Ne fonctionne surement pas avec les jour fériers !
-            first_date = self._get_first_date_from_csv(file_path)
-            last_date = self._get_last_date_from_csv(file_path)
-
-            # Vérifier si des données plus anciennes doivent être téléchargées
-            if pd.to_datetime(first_date) > pd.to_datetime(self.orders[0].date):
-                self._update_with_old_data(file_path, first_date, interval)
-
-            # Vérifier si des données plus récentes doivent être téléchargées
-            if pd.to_datetime(last_date) + pd.Timedelta(days=1) < pd.to_datetime(end_date):
-                self._update_with_new_data(file_path, last_date, end_date, interval)
-
-            else :
-                print(f"Aucune nouvelle donnée à télécharger pour {self.short_name}, les données sont déjà à jour.")
-
-        else :
+        if not file_path.is_file() :
             # Créer un nouveau fichier avec toutes les données si le fichier n'existe pas
-            self._initialize_new_file(file_path, end_date, interval)
+            self._initialize_new_file(file_path, end_date, save_dir, filename_sufix, interval)
+            self._update_history(file_path, end_date, save_dir, filename_sufix, interval)
+        else :
+            self._update_history(file_path, end_date, save_dir, filename_sufix, interval)
 
         # Charger les données existantes et les renvoie
         return pd.read_csv(file_path, index_col='Date', parse_dates=True)
@@ -256,20 +317,20 @@ class Asset:
     def download_history(self, end_date: str, save_dir: Path, filename_sufix: str=FILENAME_SUFIX, interval: str='1d') -> None:
         Path.mkdir(save_dir, parents=True, exist_ok=True)
 
-        price_data = self._get_history(end_date,
+        last_detention_date = self._get_last_detention_date(end_date)
+        price_data = self._get_history(last_detention_date,
                                        save_dir,
                                        filename_sufix,
                                        interval)
-
-        # Si l'actif n'est pas en dans la devise cible, le convertir
-        # TODO: get wallet currency instead
-        if self.currency != "EUR":
-            self._convert_history("EUR",
-                                  price_data,
-                                  end_date,
-                                  save_dir,
-                                  filename_sufix,
-                                  interval)
+        if not price_data.empty :
+            # TODO: get wallet currency instead
+            if self.currency != "EUR":
+                self._convert_history("EUR",
+                                      price_data,
+                                      last_detention_date,
+                                      save_dir,
+                                      filename_sufix,
+                                      interval)
 
     def load_history(self, save_dir: Path, filename_sufix: str=FILENAME_SUFIX) -> None:
         """
@@ -311,6 +372,14 @@ class Assets:
     def add_asset(self, asset: Asset) -> None:
         self.assets.append(asset)
 
+    def remove_asset(self, asset_to_remove: Asset) -> None:
+        """
+        Supprime un asset de la liste des assets.
+
+        :param asset_to_remove: L'asset à supprimer
+        """
+        self.assets = [asset for asset in self.assets if asset != asset_to_remove]
+
     def to_dict(self) -> Dict:
         return {
             "assets": [asset.to_dict() for asset in self.assets]
@@ -334,7 +403,7 @@ class Assets:
         for asset in self.assets:
             if asset.dates == []:
                 print('ERROR: asset.dates must have been defined. Please call load_histories().')
-                return 1
+                # return 1
             dates_temp.update(asset.dates)
         return list(sorted(dates_temp))
 
@@ -371,3 +440,25 @@ def is_valid_date(date_str: str) -> bool:
     except ValueError:
         # Si une erreur est levée, la date n'est pas valide
         return False
+
+
+def load_assets_json_file(assets_jsonfile: Path) -> Assets:
+    """Charge les actifs depuis le fichier JSON
+    et reconstruit l'arboressence en respectant les classes de chaque objet"""
+    with open(assets_jsonfile, 'r', encoding='utf-8') as asset_file:
+        assets_data = json.load(asset_file)
+
+    return rebuild_assets_structure(assets_data)
+
+
+def write_assets_json_file(assets: Assets, assets_jsonfile: Path):
+    with open(assets_jsonfile, 'w', encoding='utf-8') as asset_file:
+        json.dump(assets.to_dict(), asset_file, indent=4)
+
+
+def find_asset_by_ticker(assets: Assets, new_asset: Asset) -> Tuple[bool, Asset]:
+    """Rechercher un actif dans assets avec son ticker"""
+    for asset in assets.assets:
+        if asset.ticker == new_asset.ticker:
+            return True, asset
+    return False, new_asset
