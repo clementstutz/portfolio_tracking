@@ -1,0 +1,51 @@
+{
+    "assets": [
+        {
+            "short_name": "CAC40",
+            "name": "CAC40",
+            "ticker": "^FCHI",
+			"broker": "XTB",
+            "currency": "EUR",
+			"orders": [
+                {"date": "2020-03-31", "quantity": 0.01, "price": 4396.1},
+                {"date": "2020-03-31", "quantity": -0.01, "price": 4357.5}
+                {"date": "2023-07-06", "quantity": 0.01, "price": 7109.7},
+                {"date": "2024-07-04", "quantity": -0.01, "price": 7708.7}
+			]
+        },
+        {
+            "short_name": "Microsoft",
+            "name": "Microsoft Corp.",
+            "ticker": "MSFT",
+			"broker": "SaxoBanque",
+            "currency": "USD",
+			"orders": [
+				{"date": "2020-07-09", "quantity": 1, "price": 216.2}
+			]
+        },
+        {
+            "short_name": "Lyxor PEA Monde",
+            "name": "Lyxor PEA Monde (MSCI World) UCITS ETF - Capi.",
+            "ticker": "EWLD.PA",
+            "isin": "LU2655993207",
+			"broker": "Bourse Direct",
+            "currency": "EUR",
+			"orders": [
+                {"date": "2023-06-01", "quantity": 8, "price": 24.93},
+				{"date": "2023-06-13", "quantity": 19, "price": 25.551},
+				{"date": "2023-07-18", "quantity": 78, "price": 25.36718},
+                {"date": "2024-07-04", "quantity": -105, "price": 31.527}
+			]
+        },
+        {
+            "short_name": "Renaissance Europe",
+            "name": "Comgest Renaissance Europe C",
+            "ticker": "0P00000PM8.F",
+			"broker": "Bourse Direct",
+            "currency": "EUR",
+			"orders": [
+				{"date": "2022-01-06", "quantity": 2, "price": 267.93}
+			]
+        }
+    ]
+}
