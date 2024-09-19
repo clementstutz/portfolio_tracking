@@ -2,7 +2,7 @@ from datetime import datetime
 from pathlib import Path
 from time import sleep
 from typing import Dict, List, Tuple
-from portfolio_tracking.yfinance_interface import ASSETS_JSON_FILENAME, HISTORIES_DIR_PATH, HISTORY_FILENAME_SUFIX, DatabaseManager, Asset, Order, load_assets_json_file
+from yfinance_interface import ASSETS_JSON_FILENAME, HISTORIES_DIR_PATH, HISTORY_FILENAME_SUFIX, DatabaseManager, Asset, Order, load_assets_json_file
 # import numpy_financial as npf
 # import QuantLib as ql
 
