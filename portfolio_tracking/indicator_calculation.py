@@ -1,8 +1,8 @@
 from typing import Dict, List, Tuple
 import numpy as np
-import numpy_financial as npf
+# import numpy_financial as npf
 
-from portfolio_tracking.yfinance_interface import Asset
+from portfolio_tracking.class_asset import Asset
 
 
 def _get_new_investement(date: str, asset: Asset, actions_count: Dict) -> float:  # OK !
@@ -202,9 +202,9 @@ def get_wallet_MWRR(start_date: str, end_date: str) -> List:  # TODO : impemente
     return 0
 
 
-def get_wallet_IRR(start_date: str, end_date: str, cash_flows: List[float]) -> List:  # TODO : impementer cette fonction
-    """Calculates the IRR"""
-    return npf.irr(cash_flows) #from numpy_financial...
+# def get_wallet_IRR(start_date: str, end_date: str, cash_flows: List[float]) -> List:  # TODO : impementer cette fonction
+#     """Calculates the IRR"""
+#     return npf.irr(cash_flows) #from numpy_financial...
 
 
 def calculate_irr(cash_flows: List[float]) -> float:

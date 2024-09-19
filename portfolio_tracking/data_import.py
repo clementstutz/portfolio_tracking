@@ -1,170 +1,155 @@
 from pathlib import Path
+from typing import List
 import yfinance as yf
 import pandas as pd
 
-from portfolio_tracking import utils
-from portfolio_tracking.portfolio_management import Portfolio
+from portfolio_tracking.class_asset import Asset
+from portfolio_tracking.data_storage import DataStorage, ARCHIVES_DIR_NAME, COLUMNS_ORDER, HISTORY_FILENAME_SUFIX, HISTORIES_DIR_PATH
+# from portfolio_tracking.portfolio_management import Portfolio
 from portfolio_tracking.utils import normalize_name
-from portfolio_tracking.data_storage import ARCHIVES_FILENAME, COLUMNS_ORDER, FILENAME_SUFIX, STOCKS_HISTORIES_DIR, DataStorage
 
 class DataImport:
-    def __init__(self, ticker: str):
-        self.ticker = ticker
+    def __init__(self):
+        pass
 
-    def _get_data_from_archives(self, start_date: str, end_date: str, file_path: Path) -> pd.DataFrame:
+    def _get_data_from_archives(self, file_path: Path, start_date: str, end_date: str) -> pd.DataFrame:
         # TODO: vérifier que les dates demandes sont bien dans l'archive!
-
         archived_data = pd.read_csv(file_path, index_col='Date', parse_dates=True)
 
         # Filtrer les données archivées pour la période demandée
-        archived_data_filtered = archived_data.loc[start_date:end_date]
+        return archived_data.loc[start_date:end_date]
 
-        # Fusionner les données archivées avec les nouvelles données
-        data = archived_data_filtered
-        return data
+    def _reorgenize_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Réordonner les colonnes et les trie par date.
+        """
+        return df[COLUMNS_ORDER].sort_index()
 
-    def _download_data(self, start_date: str, end_date: str, interval: str, save_dir, filename_sufix) -> pd.DataFrame:
+    def _download_history(self, asset: Asset, start_date: str, end_date: str, interval: str) -> pd.DataFrame:
         """
         Télécharge les données de bourse pour la période donnée.
         """
         # TODO : Why not use yf.Ticker("the_ticker").history() ?
-        data = yf.download(tickers=self.ticker,
-                           start=start_date,
-                           end=end_date,
-                           interval=interval)
-        if data.empty:
+        df:pd.DataFrame = yf.download(tickers=asset.ticker,
+                                      start=start_date,
+                                      end=end_date,
+                                      interval=interval)
+
+        if df.empty:
             # If the download failed, check the Archives directory if there is data for this asset.
-            archives_dir_path = Path(save_dir / ARCHIVES_FILENAME)
-            file_path = archives_dir_path / f"{normalize_name(self.short_name)}_{self.currency}_{filename_sufix}"
+            archives_dir_path = HISTORIES_DIR_PATH / ARCHIVES_DIR_NAME
+            file_path = archives_dir_path / f"{normalize_name(asset.short_name)}_{asset.currency}_{HISTORY_FILENAME_SUFIX}"
             if file_path.is_file() :
-                return self._get_data_from_archives(start_date, end_date, file_path)
+                df = self._get_data_from_archives(file_path=file_path,
+                                                  start_date=start_date,
+                                                  end_date=end_date)
             else :
                 # TODO: Try another method to get the datas!
                 # could be done with another API (ex. Investing API (investpy on PyPi))
                 # return data
                 pass
             # raise ValueError(f"Aucune donnée n'a été téléchargée pour {self.ticker} entre {start_date} et {end_date}")
-        return data
+        return self._reorgenize_data(df)
 
-    def _append_new_data(self, existing_data: pd.DataFrame, new_data: pd.DataFrame) -> pd.DataFrame:
+    def _concat_data(self, first_dataframe: pd.DataFrame, second_dataframe: pd.DataFrame) -> pd.DataFrame:
         """
-        Combine les nouvelles données avec les données existantes et les trie par date.
+        Combine les nouvelles données avec les données existantes.
         """
-        if new_data.empty:
-            # Si les nouvelles données sont vides, retourner simplement les données existantes
-            return existing_data[COLUMNS_ORDER].sort_index()
+        if first_dataframe.empty and second_dataframe.empty:
+            # Si les deux entrées sont vides, retourner un warning et un dataframe vide.
+            print(f"WARNIGN: first_dataframe and second_dataframe are empty.")
+            return first_dataframe
 
-        # Si aucune des deux n'est vide, les concaténer
-        combined_data = pd.concat([existing_data, new_data])
-        return combined_data[COLUMNS_ORDER].sort_index()
+        elif first_dataframe.empty:
+            print(f"WARNIGN: first_dataframe is empty.")
+            return second_dataframe
 
-    def _update_with_old_data(self, file_path: Path, first_date: str, interval: str, save_dir, filename_sufix) -> None:
+        elif second_dataframe.empty:
+            print(f"WARNIGN: second_dataframe is empty.")
+            return first_dataframe
+        else :
+            return pd.concat([first_dataframe, second_dataframe])
+
+    def _update_with_old_data(self, asset: Asset, df: pd.DataFrame, start_date: str, end_date: str, interval: str) -> pd.DataFrame:
         """
         Télécharge et ajoute les données manquantes antérieures à la première date du fichier existant.
         """
-        old_data = self._download_data(start_date=self.orders[0].date,
-                                       end_date=pd.to_datetime(first_date).strftime('%Y-%m-%d'),
-                                       interval=interval,
-                                       save_dir=save_dir,
-                                       filename_sufix=filename_sufix)
-        existing_data = pd.read_csv(file_path, index_col='Date', parse_dates=True)
-        combined_data = self._append_new_data(old_data, existing_data)
-        combined_data.to_csv(file_path, float_format="%.4f", index=True)
-        print(f"Le fichier CSV a été mis à jour avec d'anciennes données et sauvegardé sous {file_path}")
+        new_df = self._download_history(asset=asset,
+                                        start_date=start_date,
+                                        end_date=pd.to_datetime(end_date).strftime('%Y-%m-%d'),
+                                        interval=interval)
+        return self._concat_data(first_dataframe=new_df, second_dataframe=df)
 
-    def _update_with_new_data(self, portfolio: Portfolio, file_path: Path, last_date: str, end_date: str, interval: str, save_dir, filename_sufix) -> None:
+    def _update_with_new_data(self, asset: Asset, df: pd.DataFrame, start_date: str, end_date: str, interval: str) -> pd.DataFrame:
         """
         Télécharge et ajoute les données manquantes postérieures à la dernière date du fichier existant.
         """
-        new_data = self._download_data(start_date=pd.to_datetime(last_date) + pd.Timedelta(days=1),
-                                       end_date=end_date,
-                                       interval=interval,
-                                       save_dir=save_dir,
-                                       filename_sufix=filename_sufix)
-        existing_data = pd.read_csv(file_path, index_col='Date', parse_dates=True)
-        combined_data = self._append_new_data(existing_data, new_data)
-        combined_data.to_csv(file_path, float_format="%.4f", index=True)
-        filename = Path(f"{normalize_name(portfolio.short_name)}_{portfolio.currency}_{filename_sufix}")
-        data_storage = DataStorage()
-        data_storage.save_data(combined_data, filename)
-        print(f'Le fichier CSV a été mis à jour avec de nouvelles données et sauvegardé sous {file_path}')
+        new_df = self._download_history(asset=asset,
+                                        start_date=pd.to_datetime(start_date) + pd.Timedelta(days=1),
+                                        end_date=end_date,
+                                        interval=interval)
+        return self._concat_data(first_dataframe=df, second_dataframe=new_df)
 
-    def _initialize_new_file(self, file_path: Path, end_date: str, save_dir: Path, filename_sufix: str, interval: str) -> None:
-        """
-        Télécharge toutes les données et crée un nouveau fichier CSV si celui-ci n'existe pas.
-        """
-        data = self._download_data(start_date=self.orders[0].date,
-                                   end_date=end_date,
-                                   interval=interval,
-                                   save_dir=save_dir,
-                                   filename_sufix=filename_sufix)
-        # Réordonner les colonnes et s'assurer qu'elles sont ordonnées par date
-        data = data[COLUMNS_ORDER].sort_index()
-        data.to_csv(file_path, float_format="%.4f", index=True)
-        print(f'Le fichier CSV a été sauvegardé avec succès sous {file_path}')
-
-    def _get_first_detention_date(self) :
-        return self.orders[0].date
-
-    def _get_last_detention_date(self, date) :
-        self.quantity = 0
-        for order in self.orders:
-            self.quantity += order.quantity
-
-        if self.quantity == 0 :
-            if pd.to_datetime(self.orders[-1].date) + pd.Timedelta(days=1) <= pd.to_datetime(date) :
-                return pd.to_datetime(self.orders[-1].date) + pd.Timedelta(days=1)
-        return date
-
-    def _update_history(self, file_path: Path, end_date: str, save_dir: Path, filename_sufix: str, interval: str) -> pd.DataFrame:
+    def _update_history(self, asset: Asset, df: pd.DataFrame, start_date: str, end_date: str, interval: str) -> pd.DataFrame:
         # FIXME : Ne fonctionne surement pas avec les jour fériers !
-        first_date = utils.get_first_date_from_csv(file_path)
-        last_date = utils.get_last_date_from_csv(file_path)
+        first_df_date: str = df.index[0] #self._get_first_date_from_csv(file_path)
+        last_df_date: str = df.index[-1] #self._get_last_date_from_csv(file_path)
+
+        need_older_data: bool = pd.to_datetime(start_date) < pd.to_datetime(first_df_date)
+        need_newer_data: bool = pd.to_datetime(last_df_date) + pd.Timedelta(days=2) < pd.to_datetime(end_date)
+
+        if not (need_older_data) and not(need_newer_data):
+            print(f"Aucune nouvelle donnée à télécharger pour '{asset.ticker}', les données sont déjà à jour.")
+            return df
 
         # Vérifier si des données plus anciennes doivent être téléchargées
-        if pd.to_datetime(self.orders[0].date) < pd.to_datetime(first_date) :
-            self._update_with_old_data(file_path, first_date, interval, save_dir, filename_sufix)
+        if need_older_data :
+            df = self._update_with_old_data(asset=asset,
+                                            df=df,
+                                            start_date=start_date,
+                                            end_date=first_df_date,
+                                            interval=interval)
+            print(f"Le Dataframe du ticker '{asset.ticker}' a été mis à jour avec d'anciennes données.")
 
         # Vérifier si des données plus récentes doivent être téléchargées
-        end_date = self._get_last_detention_date(end_date)
         # TODO: change the value "2" of pd.Timedelta(days=2) to "1", but need to manage case of dalayed data
-        if pd.to_datetime(last_date) + pd.Timedelta(days=2) < pd.to_datetime(end_date):
-            self._update_with_new_data(file_path, last_date, end_date, interval, save_dir, filename_sufix)
+        if need_newer_data:
+            df = self._update_with_new_data(asset=asset,
+                                            df=df,
+                                            start_date=last_df_date,
+                                            end_date=end_date,
+                                            interval=interval)
+            print(f"Le Dataframe du ticker '{asset.ticker}' a été mis à jour avec de nouvelles données.")
 
-        else :
-            print(f"Aucune nouvelle donnée à télécharger pour {self.short_name}, les données sont déjà à jour.")
+        return df
 
-        return pd.read_csv(file_path, index_col='Date', parse_dates=True)
+    def get_history(self, asset: Asset, end_date: str, interval: str='1d') -> pd.DataFrame:
+        last_detention_date = asset.get_last_detention_date(end_date)
 
-    def _get_history(self, end_date: str, save_dir: Path, filename_sufix: str, interval: str) -> pd.DataFrame:
-        """
-        Télécharge les données boursières et met à jour le fichier CSV avec les nouvelles données.
-        """
-        file_path = save_dir / Path(f"{normalize_name(self.short_name)}_{self.currency}_{filename_sufix}")
-        end_date = self._get_last_detention_date(end_date)
+        df = self._download_history(asset=asset,
+                                    start_date=asset.orders[0].date,
+                                    end_date=last_detention_date,
+                                    interval=interval)
 
-        if not file_path.is_file() :
-            # Créer un nouveau fichier avec toutes les données si le fichier n'existe pas
-            self._initialize_new_file(file_path, end_date, save_dir, filename_sufix, interval)
-            self._update_history(file_path, end_date, save_dir, filename_sufix, interval)
-        else :
-            self._update_history(file_path, end_date, save_dir, filename_sufix, interval)
+        df = self._update_history(asset=asset,
+                                  df=df,
+                                  start_date=asset.orders[0].date,
+                                  end_date=last_detention_date,
+                                  interval=interval)
 
-        # Charger les données existantes et les renvoie
-        return pd.read_csv(file_path, index_col='Date', parse_dates=True)
+        return df
 
-    def download_history(self, end_date: str, save_dir: Path=STOCKS_HISTORIES_DIR, filename_sufix: str=FILENAME_SUFIX, interval: str='1d') -> None:
-        Path.mkdir(save_dir, parents=True, exist_ok=True)
+    def download_histories(self, assets: List[Asset], end_date: str, interval: str='1d') -> pd.DataFrame:
+        dfs = []
+        for asset in assets:
+            dfs.append(
+                self.get_history(asset=asset,
+                                 end_date=end_date,
+                                 interval=interval))
+        return dfs
 
-        data_importer = DataImport(ticker="AAPL")
 
-        last_detention_date = self._get_last_detention_date(end_date)
-        self._get_history(last_detention_date,
-                          save_dir,
-                          filename_sufix,
-                          interval)
-
-    def load_history(self, save_dir: Path, filename_sufix: str=FILENAME_SUFIX) -> None:
+    def load_history(self, save_dir: Path, filename_sufix: str=HISTORY_FILENAME_SUFIX) -> None:
         """
         Charge l'historique des prix de l'action à partir d'un fichier CSV et met à jour les attributs `dates` et `closes`.
         """
@@ -197,14 +182,14 @@ class DataImport:
             print(f"Une erreur inattendue est survenue lors du chargement de {csv_filename} : {e}")
 
 
-class DataUpdater:
-    def __init__(self, portfolio: Portfolio, data_storage: DataStorage):
-        self.portfolio = portfolio
-        self.data_storage = data_storage
+# class DataUpdater:
+#     def __init__(self, portfolio: Portfolio, data_storage: DataStorage):
+#         self.portfolio = portfolio
+#         self.data_storage = data_storage
 
-    def update_data(self, end_date: str):
-        for asset in self.portfolio.assets:
-            data_importer = DataImport(ticker=asset.ticker)
-            data = data_importer.download_data(start_date=asset.orders[0].date, end_date=end_date)
-            self.data_storage.save_data(data, filename=f"{asset.ticker}.csv")
-            print(f"Data for {asset.ticker} updated until {end_date}.")
+#     def update_data(self, end_date: str):
+#         for asset in self.portfolio.assets:
+#             data_importer = DataImport(ticker=asset.ticker)
+#             data = data_importer.download_data(start_date=asset.orders[0].date, end_date=end_date)
+#             self.data_storage.save_data(data, filename=f"{asset.ticker}.csv")
+#             print(f"Data for {asset.ticker} updated until {end_date}.")

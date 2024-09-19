@@ -1,10 +1,12 @@
 from datetime import datetime
 import json
 from pathlib import Path
-from typing import Tuple
+from typing import List, Tuple
 import pandas as pd
 
-from portfolio_tracking.portfolio_management import Order, Asset, Portfolio
+from portfolio_tracking.class_order import Order
+from portfolio_tracking.class_asset import Asset
+from portfolio_tracking.portfolio_management import Portfolio
 
 
 def normalize_name(name: str) -> str:
@@ -13,25 +15,7 @@ def normalize_name(name: str) -> str:
         .replace('.', '_')
 
 
-def rebuild_assets_structure(assets_data) -> Portfolio:
-        """Recréer les objets à partir des données lues depuis le fichier JSON"""
-        # TODO : Ajouter dates et closes ???
-        restored_assets = Portfolio([Asset(
-            asset_data["short_name"],
-            asset_data["name"],
-            asset_data["ticker"],
-            asset_data["broker"],
-            asset_data["currency"],
-            [Order(
-                order_data["date"],
-                order_data["quantity"],
-                order_data["price"]
-            ) for order_data in asset_data["orders"]]
-        ) for asset_data in assets_data["assets"]])
-        return restored_assets
-
-
-def load_assets_json_file(assets_jsonfile: Path) -> Portfolio:
+def load_assets_json_file(assets_jsonfile: Path) -> List[Asset]:
     """Charge les actifs depuis le fichier JSON
     et reconstruit l'arboressence en respectant les classes de chaque objet"""
     with open(assets_jsonfile, 'r', encoding='utf-8') as asset_file:
@@ -45,9 +29,9 @@ def write_assets_json_file(Portfolio: Portfolio, assets_jsonfile: Path):
         json.dump(Portfolio.to_dict(), asset_file, indent=4)
 
 
-def find_asset_by_ticker(Portfolio: Portfolio, new_asset: Asset) -> Tuple[bool, Asset]:
-    """Rechercher un actif dans Portfolio avec son ticker"""
-    for asset in Portfolio.assets:
+def find_asset_by_ticker(assets: List[Asset], new_asset: Asset) -> Tuple[bool, Asset]:
+    """Rechercher un actif dans assets avec son ticker"""
+    for asset in assets:
         if asset.ticker == new_asset.ticker:
             return True, asset
     return False, new_asset
